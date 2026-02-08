@@ -1,36 +1,65 @@
-FROM pytorch/pytorch:2.5.1-cuda11.8-cudnn9-runtime
+# syntax=docker/dockerfile:1.4
 
-# not apt update: most effective code in pytorch base image is in /opt/conda
+# ---------------------------------------------------------------
+# Base image – PyTorch with CUDA 11.8 (can be overridden via build-arg)
+# ---------------------------------------------------------------
+ARG BASE_IMAGE=pytorch/pytorch:2.5.1-cuda11.8-cudnn9-runtime
+FROM ${BASE_IMAGE} AS final
 
-WORKDIR /app
-
-# Install pip dependencies
-
-COPY requirements.txt /app/requirements.txt
-
-RUN export TZ=Etc/UTC \
-        && apt update --yes \
-        && apt install g++ wget ffmpeg libsm6 libxext6 gimp libvulkan1 --yes \
-        && wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb \
-        && dpkg -i cuda-keyring_1.1-1_all.deb \
-        && rm -f cuda-keyring_1.1-1_all.deb \
-        && apt update --yes \
-        && apt install -y libcudnn8=8*-1+cuda11.8 libcudnn8-dev=8*-1+cuda11.8 \
-        && pip install -r /app/requirements.txt \
-        && apt remove g++ wget --yes \
-        && apt autoremove --yes \
-        && rm -rf /var/cache/apt
-
-COPY . /app
-
-# Prepare models
-RUN python -u docker_prepare.py --continue-on-error
-
-RUN rm -rf /tmp && mkdir /tmp && chmod 1777 /tmp
-
-# Add /app to Python module path
-ENV PYTHONPATH="/app"
+# ---------------------------------------------------------------
+# Environment variables (common to build and runtime)
+# ---------------------------------------------------------------
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=Etc/UTC \
+    PYTHONPATH=/app \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_TIMEOUT=600 \
+    PIP_RETRIES=10 \
+    PIP_DEFAULT_TIMEOUT=600
 
 WORKDIR /app
 
-ENTRYPOINT ["python", "-m", "manga_translator"]
+# ---------------------------------------------------------------
+# System dependencies (bash needed for entrypoint, libgl1 for OpenCV/matplotlib)
+# ---------------------------------------------------------------
+RUN apt-get update -o Acquire::Retries=5 -o Acquire::http::Timeout=120 && \
+    apt-get install -y --no-install-recommends \
+        g++ \
+        wget \
+        ffmpeg \
+        libsm6 \
+        libxext6 \
+        libgl1 \
+        bash && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# ---------------------------------------------------------------
+# Python dependencies
+# ---------------------------------------------------------------
+COPY requirements.txt ./
+RUN python -m pip install --upgrade pip setuptools wheel && \
+    python -m pip install --no-cache-dir -r requirements.txt
+
+# ---------------------------------------------------------------
+# Application source code
+# ---------------------------------------------------------------
+COPY . ./
+
+# ---------------------------------------------------------------
+# Runtime preparation (tmp permissions, log file)
+# ---------------------------------------------------------------
+RUN chmod 1777 /tmp && \
+    mkdir -p /var/log && touch /var/log/app.log
+
+# ---------------------------------------------------------------
+# Entrypoint (make sure the script is executable)
+# ---------------------------------------------------------------
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+EXPOSE 8000
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
