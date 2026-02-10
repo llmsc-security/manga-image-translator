@@ -1489,3 +1489,21 @@ GPU server costs are high, please consider supporting us. Thank you very much!
 ## Star Growth Curve
 
 [![Star History Chart](https://api.star-history.com/svg?repos=zyddnys/manga-image-translator&type=Date)](https://star-history.com/#zyddnys/manga-image-translator&Date)
+
+
+
+
+
+---
+
+## Docker Deployment
+
+This repository has been Dockerized for easy deployment.
+
+- **Official Repository**: [zyddnys/manga-image-translator](https://github.com/zyddnys/manga-image-translator)
+- **Dockerized by**: [llmsc-security](https://github.com/llmsc-security)
+- **Docker Image**: `zyddnys--manga-image-translator_image`
+- **Container**: `zyddnys--manga-image-translator_container`
+- **HTTP Service**: `http://127.0.0.1:11080`
+
+For Docker deployment and port mapping details, please visit our [Docker Directory](https://github.com/llmsc-security/docker-yuelin).
